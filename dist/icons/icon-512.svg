@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#0e7490"/>
+      <stop offset="100%" stop-color="#0c4a6e"/>
+    </radialGradient>
+    <radialGradient id="iris" cx="40%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0891b2"/>
+    </radialGradient>
+  </defs>
+  <!-- Background -->
+  <circle cx="256" cy="256" r="256" fill="url(#bg)"/>
+  <!-- Eye outline -->
+  <ellipse cx="256" cy="256" rx="153.6" ry="66.56"
+    fill="rgba(255,255,255,0.08)" stroke="#22d3ee" stroke-width="11.264"/>
+  <!-- Iris -->
+  <circle cx="256" cy="256" r="51.9168" fill="url(#iris)"/>
+  <!-- Pupil -->
+  <circle cx="256" cy="256" r="21.299200000000003" fill="#061a22"/>
+  <!-- Scan lines -->
+  <line x1="219.392" y1="244.0192" x2="292.608" y2="244.0192" stroke="rgba(34,211,238,0.6)" stroke-width="7.168" stroke-linecap="round"/>
+  <line x1="219.392" y1="256" x2="292.608" y2="256" stroke="rgba(34,211,238,0.45)" stroke-width="6.144" stroke-linecap="round"/>
+  <line x1="219.392" y1="267.9808" x2="292.608" y2="267.9808" stroke="rgba(34,211,238,0.3)" stroke-width="5.12" stroke-linecap="round"/>
+</svg>
