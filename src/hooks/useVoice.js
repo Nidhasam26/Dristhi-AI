@@ -8,6 +8,8 @@ export function useVoice() {
     volume: voiceService.volume,
     muted: voiceService.muted,
     hasSpeech: voiceService.hasSpeech,
+    voiceCount: voiceService.voiceCount,
+    voiceError: voiceService.voiceError,
   });
 
   useEffect(() => {
@@ -21,6 +23,19 @@ export function useVoice() {
     voiceService.speak(promptKey);
   }, []);
 
+  const enableAndSpeak = useCallback((promptKey) => {
+    voiceService.setEnabled(true);
+    voiceService.setMuted(false);
+    voiceService.speak(promptKey);
+  }, []);
+
+  const changeLanguageAndSpeak = useCallback((lang, promptKey = 'language_changed') => {
+    voiceService.setLanguage(lang);
+    voiceService.setEnabled(true);
+    voiceService.setMuted(false);
+    voiceService.speak(promptKey);
+  }, []);
+
   const setEnabled = useCallback((val) => voiceService.setEnabled(val), []);
   const setLanguage = useCallback((lang) => voiceService.setLanguage(lang), []);
   const setVolume = useCallback((vol) => voiceService.setVolume(vol), []);
@@ -29,6 +44,8 @@ export function useVoice() {
   return {
     ...settings,
     speak,
+    enableAndSpeak,
+    changeLanguageAndSpeak,
     setEnabled,
     setLanguage,
     setVolume,

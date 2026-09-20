@@ -192,6 +192,7 @@ export default function NewScan() {
                         onClick={() => {
                           setSelected(p);
                           setStep(1);
+                          speak('patient_selected');
                         }}
                       >
                         <span className="dr-avatar">
@@ -208,7 +209,7 @@ export default function NewScan() {
                     ))}
                   </div>
 
-                  <button className="dr-secondary-btn" onClick={() => setNewPatient(true)}>
+                  <button className="dr-secondary-btn" onClick={() => { setNewPatient(true); speak('register_patient'); }}>
                     <UserPlus size={16} /> Register new patient
                   </button>
                 </>
@@ -281,6 +282,10 @@ export default function NewScan() {
                       setThumbnail(null);
                     }}
                   />
+
+                  {!image && <button type="button" className="dr-secondary-btn" onClick={() => speak('capture_image')}>
+                    <Volume2 size={15} /> Hear capture instructions
+                  </button>}
 
                   <div style={{ marginTop: 12, textAlign: 'center' }}>
                     <button
@@ -355,7 +360,10 @@ export default function NewScan() {
               <button
                 className="dr-primary-btn full"
                 disabled={!image || !quality}
-                onClick={runScan}
+                onClick={() => {
+                  speak('start_analysis');
+                  runScan();
+                }}
               >
                 <ScanLine size={18} /> Start AI analysis <ArrowRight size={16} />
               </button>

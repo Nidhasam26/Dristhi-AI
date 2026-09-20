@@ -5,6 +5,53 @@ import { useAuth } from './AuthContext.jsx';
 
 const PatientContext = createContext(null);
 
+const PENDING_STATUSES = new Set(['pending_sync', 'syncing', 'failed']);
+
+function isPending(record) {
+  return PENDING_STATUSES.has(record.sync_status);
+}
+
+function sameUser(left, right) {
+  const normalize = (value) => String(value || '').toLowerCase().replaceAll('_', '');
+  return normalize(left) === normalize(right);
+}
+
+function apiHeaders(user) {
+  return {
+    'x-user-id': user.id,
+    'x-user-role': user.role,
+  };
+}
+
+function normalizeScan(scan) {
+  return {
+    ...scan,
+    ownerUserId: scan.ownerUserId || scan.owner_user_id,
+    scan_date: scan.scan_date || scan.created_at,
+    ai_result: scan.ai_result || (scan.dr_grade == null
+      ? undefined
+      : { grade: scan.dr_grade, confidence: scan.confidence }),
+    sync_status: 'synced',
+  };
+}
+
+async function reconcileStore(db, storeName, localRecords, remoteRecords) {
+  const merged = new Map(remoteRecords.map((record) => [record.id, record]));
+
+  // Keep local edits until the sync queue successfully sends them.
+  localRecords.filter(isPending).forEach((record) => merged.set(record.id, record));
+
+  for (const localRecord of localRecords) {
+    if (!isPending(localRecord) && !merged.has(localRecord.id)) {
+      await db.delete(storeName, localRecord.id);
+    }
+  }
+
+  const records = [...merged.values()];
+  if (records.length > 0) await db.putAll(storeName, records);
+  return records;
+}
+
 export function PatientProvider({ children }) {
   const { user } = useAuth();
   const [patients, setPatients] = useState([]);
@@ -23,9 +70,37 @@ export function PatientProvider({ children }) {
     let p = await db.getAll('patients');
     let s = await db.getAll('scans');
 
-    if (user.role === 'patient') {
-      p = p.filter((pat) => pat.userId === user.id || pat.id === user.id);
-      s = s.filter((scan) => scan.ownerUserId === user.id);
+    // MySQL is authoritative for synced records; IndexedDB remains the offline cache.
+    if (navigator.onLine) {
+      try {
+        const [patientsResponse, scansResponse] = await Promise.all([
+          fetch('/api/patients', { headers: apiHeaders(user), cache: 'no-store' }),
+          fetch('/api/scans', { headers: apiHeaders(user), cache: 'no-store' }),
+        ]);
+
+        if (!patientsResponse.ok || !scansResponse.ok) {
+          throw new Error('Backend data request failed');
+        }
+
+        const patientsJson = await patientsResponse.json();
+        const scansJson = await scansResponse.json();
+        const remotePatients = (patientsJson.data || []).map((patient) => ({
+          ...patient,
+          userId: patient.userId || patient.user_id,
+          sync_status: 'synced',
+        }));
+        const remoteScans = (scansJson.data || []).map(normalizeScan);
+
+        p = await reconcileStore(db, 'patients', p, remotePatients);
+        s = await reconcileStore(db, 'scans', s, remoteScans);
+      } catch (error) {
+        console.warn('Backend refresh unavailable; using local cache:', error.message);
+      }
+    }
+
+    if (user.role !== 'admin') {
+      p = p.filter((pat) => sameUser(pat.userId, user.id) || pat.id === user.id);
+      s = s.filter((scan) => sameUser(scan.ownerUserId, user.id));
     }
 
     setPatients(p);
@@ -36,6 +111,20 @@ export function PatientProvider({ children }) {
     setPatients([]);
     setScans([]);
     loadAll();
+
+    const refreshWhenActive = () => {
+      if (navigator.onLine) loadAll();
+    };
+
+    window.addEventListener('focus', refreshWhenActive);
+    window.addEventListener('online', refreshWhenActive);
+    document.addEventListener('visibilitychange', refreshWhenActive);
+
+    return () => {
+      window.removeEventListener('focus', refreshWhenActive);
+      window.removeEventListener('online', refreshWhenActive);
+      document.removeEventListener('visibilitychange', refreshWhenActive);
+    };
   }, [loadAll]);
 
   const addPatient = async (patientData) => {
@@ -44,10 +133,33 @@ export function PatientProvider({ children }) {
     const patient = {
       ...patientData,
       id,
+      userId: user.id,
       sync_status: patientData.sync_status || 'pending_sync',
       created_at: patientData.created_at || new Date().toISOString().slice(0, 10),
       updated_at: new Date().toISOString(),
     };
+
+    let synced = false;
+    if (navigator.onLine) {
+      try {
+        const response = await fetch('/api/patients', {
+          method: 'POST',
+          headers: {
+            ...apiHeaders(user),
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            ...patient,
+            patient_code: patient.patient_code || patient.id,
+          }),
+        });
+        synced = response.ok;
+      } catch (error) {
+        console.warn('Backend registration unavailable; queuing patient:', error.message);
+      }
+    }
+
+    if (synced) patient.sync_status = 'synced';
 
     await db.put('patients', patient);
 
@@ -61,13 +173,15 @@ export function PatientProvider({ children }) {
       return [...prev, patient];
     });
 
-    // Enqueue operation into sync queue
-    await syncEngine.enqueueOperation({
-      operationType: 'CREATE_PATIENT',
-      entityType: 'patient',
-      entityId: patient.id,
-      payload: patient,
-    });
+    if (!synced) {
+      await syncEngine.enqueueOperation({
+        operationType: 'CREATE_PATIENT',
+        entityType: 'patient',
+        entityId: patient.id,
+        payload: patient,
+      });
+      if (navigator.onLine) await syncEngine.processQueue();
+    }
 
     return patient;
   };
@@ -99,29 +213,49 @@ export function PatientProvider({ children }) {
 
   const deletePatient = async (patientId) => {
     const db = await getDB();
+    let deletedRemotely = false;
+
+    if (navigator.onLine) {
+      try {
+        const response = await fetch(`/api/patients/${encodeURIComponent(patientId)}`, {
+          method: 'DELETE',
+          headers: apiHeaders(user),
+          cache: 'no-store',
+        });
+        if (response.ok) deletedRemotely = true;
+      } catch (error) {
+        console.warn('Backend delete unavailable; queuing deletion:', error.message);
+      }
+    }
+
     await db.delete('patients', patientId);
 
     const allScans = await db.getAll('scans');
     const patientScans = allScans.filter((s) => s.patient_id === patientId);
     for (const scan of patientScans) {
       await db.delete('scans', scan.id);
-      await syncEngine.enqueueOperation({
-        operationType: 'DELETE_SCAN',
-        entityType: 'scan',
-        entityId: scan.id,
-        payload: { id: scan.id },
-      });
+      if (!deletedRemotely) {
+        await syncEngine.enqueueOperation({
+          operationType: 'DELETE_SCAN',
+          entityType: 'scan',
+          entityId: scan.id,
+          payload: { id: scan.id },
+        });
+      }
     }
 
     setPatients((prev) => prev.filter((p) => p.id !== patientId));
     setScans((prev) => prev.filter((s) => s.patient_id !== patientId));
 
-    await syncEngine.enqueueOperation({
-      operationType: 'DELETE_PATIENT',
-      entityType: 'patient',
-      entityId: patientId,
-      payload: { id: patientId },
-    });
+    if (!deletedRemotely) {
+      await syncEngine.enqueueOperation({
+        operationType: 'DELETE_PATIENT',
+        entityType: 'patient',
+        entityId: patientId,
+        payload: { id: patientId },
+      });
+      if (navigator.onLine) await syncEngine.processQueue();
+    }
 
     return true;
   };

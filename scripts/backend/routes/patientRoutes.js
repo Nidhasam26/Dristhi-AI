@@ -18,6 +18,17 @@ router.post("/", async (req, res) => {
             village,
             district
         } = req.body;
+        let ownerUserId = null;
+        if (req.get("x-user-role") !== "admin") {
+            const [owners] = await db.query(
+                "SELECT id FROM users WHERE LOWER(REPLACE(id, '_', '')) = LOWER(REPLACE(?, '_', ''))",
+                [req.get("x-user-id")]
+            );
+            if (owners.length === 0) {
+                return res.status(403).json({ success: false, message: "Authenticated user was not found" });
+            }
+            ownerUserId = owners[0].id;
+        }
 
         if (!patient_code || !name || !age || !gender) {
             return res.status(400).json({
@@ -40,10 +51,12 @@ router.post("/", async (req, res) => {
 
         const [result] = await db.query(
             `INSERT INTO patients
-            (patient_code, name, age, gender, phone, village, district)
-            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            (id, patient_code, user_id, name, age, gender, phone, village, district)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                req.body.id || patient_code,
                 patient_code,
+                ownerUserId,
                 name,
                 age,
                 gender,
@@ -76,11 +89,19 @@ router.post("/", async (req, res) => {
 
 router.get("/", async (req, res) => {
     try {
+        const isPatient = req.get("x-user-role") !== "admin";
+        const userId = req.get("x-user-id");
+        const where = isPatient
+            ? "WHERE LOWER(REPLACE(user_id, '_', '')) = LOWER(REPLACE(?, '_', ''))"
+            : "";
+        const values = isPatient ? [userId] : [];
         const [patients] = await db.query(
             `SELECT id, patient_code, name, age, gender,
-                    phone, village, district, created_at
+                    phone, village, district, user_id, created_at
              FROM patients
+             ${where}
              ORDER BY created_at DESC`
+            , values
         );
 
         res.json({
@@ -106,10 +127,16 @@ router.get("/", async (req, res) => {
 router.get("/:id", async (req, res) => {
     try {
         const { id } = req.params;
+        const isPatient = req.get("x-user-role") !== "admin";
+        const userId = req.get("x-user-id");
+        const ownership = isPatient
+            ? " AND LOWER(REPLACE(user_id, '_', '')) = LOWER(REPLACE(?, '_', ''))"
+            : "";
+        const values = isPatient ? [id, userId] : [id];
 
         const [patients] = await db.query(
-            "SELECT * FROM patients WHERE id = ?",
-            [id]
+            `SELECT * FROM patients WHERE id = ?${ownership}`,
+            values
         );
 
         if (patients.length === 0) {
@@ -151,6 +178,13 @@ router.put("/:id", async (req, res) => {
             village,
             district
         } = req.body;
+        const isPatient = req.get("x-user-role") !== "admin";
+        const userId = req.get("x-user-id");
+        const ownership = isPatient
+            ? " AND LOWER(REPLACE(user_id, '_', '')) = LOWER(REPLACE(?, '_', ''))"
+            : "";
+        const values = [name, age, gender, phone || null, village || null, district || null, req.params.id];
+        if (isPatient) values.push(userId);
 
         const [result] = await db.query(
             `UPDATE patients
@@ -160,16 +194,8 @@ router.put("/:id", async (req, res) => {
                  phone = ?,
                  village = ?,
                  district = ?
-             WHERE id = ?`,
-            [
-                name,
-                age,
-                gender,
-                phone || null,
-                village || null,
-                district || null,
-                id
-            ]
+             WHERE id = ?${ownership}`,
+            values
         );
 
         if (result.affectedRows === 0) {
@@ -190,6 +216,51 @@ router.put("/:id", async (req, res) => {
         res.status(500).json({
             success: false,
             message: "Failed to update patient"
+        });
+    }
+});
+
+// ========================================
+// DELETE PATIENT
+// ========================================
+
+router.delete("/:id", async (req, res) => {
+    try {
+        const isPatient = req.get("x-user-role") !== "admin";
+        const userId = req.get("x-user-id");
+        const ownership = isPatient
+            ? " AND LOWER(REPLACE(user_id, '_', '')) = LOWER(REPLACE(?, '_', ''))"
+            : "";
+        const patientValues = isPatient ? [req.params.id, userId] : [req.params.id];
+
+        const [ownedPatient] = await db.query(
+            `SELECT id FROM patients WHERE id = ?${ownership}`,
+            patientValues
+        );
+        if (ownedPatient.length === 0) {
+            return res.status(404).json({ success: false, message: "Patient not found" });
+        }
+
+        await db.query(
+            "DELETE FROM retinal_scans WHERE patient_id = ?",
+            [req.params.id]
+        );
+
+        const [result] = await db.query(
+            "DELETE FROM patients WHERE id = ?",
+            [req.params.id]
+        );
+
+        res.json({
+            success: true,
+            deleted: result.affectedRows > 0
+        });
+    } catch (error) {
+        console.error("❌ Delete patient error:", error.message);
+
+        res.status(500).json({
+            success: false,
+            message: "Failed to delete patient"
         });
     }
 });

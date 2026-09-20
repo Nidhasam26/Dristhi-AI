@@ -189,6 +189,12 @@ router.post(
 router.get("/", async (req, res) => {
 
     try {
+        const isPatient = req.get("x-user-role") !== "admin";
+        const userId = req.get("x-user-id");
+        const ownership = isPatient
+            ? "WHERE LOWER(REPLACE(p.user_id, '_', '')) = LOWER(REPLACE(?, '_', ''))"
+            : "";
+        const values = isPatient ? [userId] : [];
 
         const [scans] = await db.query(
 
@@ -205,14 +211,17 @@ router.get("/", async (req, res) => {
                 rs.confidence,
                 rs.risk_level,
                 rs.ai_status,
-                rs.created_at
+                rs.created_at,
+                p.user_id AS ownerUserId
 
              FROM retinal_scans rs
 
              INNER JOIN patients p
                 ON rs.patient_id = p.id
 
+                 ${ownership}
              ORDER BY rs.created_at DESC`
+                , values
         );
 
 
@@ -245,6 +254,12 @@ router.get("/:id", async (req, res) => {
     try {
 
         const { id } = req.params;
+        const isPatient = req.get("x-user-role") !== "admin";
+        const userId = req.get("x-user-id");
+        const ownership = isPatient
+            ? " AND LOWER(REPLACE(p.user_id, '_', '')) = LOWER(REPLACE(?, '_', ''))"
+            : "";
+        const values = isPatient ? [id, userId] : [id];
 
         const [scans] = await db.query(
 
@@ -255,16 +270,17 @@ router.get("/:id", async (req, res) => {
                 p.age,
                 p.gender,
                 p.village,
-                p.district
+                 p.district,
+                 p.user_id AS ownerUserId
 
              FROM retinal_scans rs
 
              INNER JOIN patients p
                 ON rs.patient_id = p.id
 
-             WHERE rs.id = ?`,
+             WHERE rs.id = ?${ownership}`,
 
-            [id]
+            values
         );
 
 

@@ -1,5 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext.jsx';
+import { useVoice } from '../../hooks/useVoice.js';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import {
   LayoutDashboard,
   ScanLine,
@@ -16,15 +18,15 @@ import {
 } from 'lucide-react';
 
 const NAV_ITEMS = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Command Center', roles: ['patient', 'user', 'admin'] },
-  { to: '/scan/new', icon: ScanLine, label: 'New Screening', roles: ['patient', 'user', 'admin'] },
-  { to: '/appointments', icon: Calendar, label: 'Appointments', roles: ['patient', 'user', 'admin'] },
-  { to: '/patients', icon: Users, label: 'Patient Registry', roles: ['patient', 'user', 'admin'] },
-  { to: '/analytics', icon: BarChart3, label: 'District Analytics', roles: ['admin', 'user'] },
-  { to: '/dataset', icon: Database, label: 'Dataset Explorer', roles: ['admin'] },
-  { to: '/validation', icon: FlaskConical, label: 'Clinical Validation', roles: ['admin'] },
-  { to: '/settings', icon: Settings2, label: 'System Settings', roles: ['patient', 'user', 'admin'] },
-  { to: '/admin', icon: ShieldCheck, label: 'Admin Workstation', roles: ['admin'] },
+  { to: '/dashboard', icon: LayoutDashboard, labelKey: 'commandCenter', prompt: 'nav_dashboard', roles: ['patient', 'user', 'admin'] },
+  { to: '/scan/new', icon: ScanLine, labelKey: 'newScreening', prompt: 'nav_scan', roles: ['patient', 'user', 'admin'] },
+  { to: '/appointments', icon: Calendar, labelKey: 'appointments', prompt: 'nav_appointments', roles: ['patient', 'user', 'admin'] },
+  { to: '/patients', icon: Users, labelKey: 'patientRegistry', prompt: 'nav_patients', roles: ['patient', 'user', 'admin'] },
+  { to: '/analytics', icon: BarChart3, labelKey: 'analytics', prompt: 'nav_analytics', roles: ['admin', 'user'] },
+  { to: '/dataset', icon: Database, labelKey: 'dataset', prompt: 'nav_dataset', roles: ['admin'] },
+  { to: '/validation', icon: FlaskConical, labelKey: 'validation', prompt: 'nav_validation', roles: ['admin'] },
+  { to: '/settings', icon: Settings2, labelKey: 'settings', prompt: 'nav_settings', roles: ['patient', 'user', 'admin'] },
+  { to: '/admin', icon: ShieldCheck, labelKey: 'admin', prompt: 'nav_admin', roles: ['admin'] },
 ];
 
 const ROLE_LABELS = {
@@ -35,6 +37,8 @@ const ROLE_LABELS = {
 
 export default function Sidebar({ collapsed = false, isMobile = false, mobileOpen = false, onClose }) {
   const { user, logout } = useAuth();
+  const { speak } = useVoice();
+  const { labels } = useLanguage();
   const navigate = useNavigate();
 
   const visibleItems = NAV_ITEMS.filter((item) => item.roles.includes(user?.role));
@@ -45,7 +49,8 @@ export default function Sidebar({ collapsed = false, isMobile = false, mobileOpe
     navigate('/login');
   };
 
-  const handleNavClick = () => {
+  const handleNavClick = (prompt) => {
+    speak(prompt);
     if (isMobile && onClose) {
       onClose();
     }
@@ -179,11 +184,11 @@ export default function Sidebar({ collapsed = false, isMobile = false, mobileOpe
           overflowY: 'auto',
         }}
       >
-        {visibleItems.map(({ to, icon: Icon, label }) => (
+        {visibleItems.map(({ to, icon: Icon, labelKey, prompt }) => (
           <NavLink
             key={to}
             to={to}
-            onClick={handleNavClick}
+            onClick={() => handleNavClick(prompt)}
             style={({ isActive }) => ({
               display: 'flex',
               alignItems: 'center',
@@ -202,7 +207,7 @@ export default function Sidebar({ collapsed = false, isMobile = false, mobileOpe
               justifyContent: collapsed && !isMobile ? 'center' : 'flex-start',
               cursor: 'pointer',
             })}
-            title={collapsed && !isMobile ? label : undefined}
+            title={collapsed && !isMobile ? labels[labelKey] : undefined}
           >
             {({ isActive }) => (
               <>
@@ -212,7 +217,7 @@ export default function Sidebar({ collapsed = false, isMobile = false, mobileOpe
                   color={isActive ? '#38BDF8' : '#94A3B8'}
                   style={{ flexShrink: 0 }}
                 />
-                {(!collapsed || isMobile) && <span style={{ flex: 1 }}>{label}</span>}
+                {(!collapsed || isMobile) && <span style={{ flex: 1 }}>{labels[labelKey]}</span>}
                 {(!collapsed || isMobile) && isActive && (
                   <span
                     style={{

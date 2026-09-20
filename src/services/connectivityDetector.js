@@ -96,7 +96,7 @@ class ConnectivityDetector {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      const res = await fetch(`${this.apiUrl}/health`, {
+      const res = await fetch(`${this.apiUrl}/api/health`, {
         method: 'GET',
         signal: controller.signal,
         cache: 'no-store',

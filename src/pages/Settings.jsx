@@ -6,6 +6,7 @@ import { notificationService } from '../services/NotificationService.js';
 import { onDeviceAI } from '../services/OnDeviceInferenceService.js';
 import PageWrapper from '../components/layout/PageWrapper.jsx';
 import VoiceGuidancePanel from '../components/ui/VoiceGuidancePanel.jsx';
+import { useLanguage } from '../context/LanguageContext.jsx';
 import {
   Settings2,
   RefreshCw,
@@ -25,6 +26,7 @@ export default function Settings() {
   const { user, isOfflineSession } = useAuth();
   const { pendingCount, status, isProcessing, triggerSync, lastSyncTime, lastError } = useSync();
   const { isOnline, isSlow, effectiveType, latencyMs } = useConnectivity();
+  const { language, languages, setLanguage } = useLanguage();
 
   const [providerInfo, setProviderInfo] = useState(notificationService.getProviderInfo());
   const [modelInfo, setModelInfo] = useState(null);
@@ -50,6 +52,14 @@ export default function Settings() {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          <div style={{ background: 'rgba(11, 36, 34, 0.6)', border: '1px solid rgba(34, 211, 238, 0.2)', borderRadius: 16, padding: 20 }}>
+            <h4 style={{ margin: 0, color: '#f0fdfa', fontSize: 15 }}>App Language</h4>
+            <p style={{ margin: '5px 0 12px', color: '#91b4af', fontSize: 12 }}>Change the language used for navigation and voice guidance.</p>
+            <select aria-label="Application language" value={language} onChange={(event) => setLanguage(event.target.value)} style={{ minWidth: 220, padding: '9px 12px', borderRadius: 8, background: '#071f2c', color: '#fff', border: '1px solid rgba(34, 211, 238, 0.3)' }}>
+              {languages.map((item) => <option key={item.code} value={item.code}>{item.native} ({item.name})</option>)}
+            </select>
+          </div>
+
           {/* 1. Voice Guidance Panel */}
           <VoiceGuidancePanel />
 

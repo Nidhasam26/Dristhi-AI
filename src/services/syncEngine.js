@@ -125,15 +125,6 @@ class SyncEngine {
 
       const apiUrl = import.meta.env.VITE_API_URL || '';
 
-      // If no backend API is configured, we do not fake sending.
-      // We keep the items saved in the local DB and queue, and accurately report state.
-      if (!apiUrl) {
-        this.status = SyncStatus.IDLE;
-        this.isProcessing = false;
-        this.notify();
-        return;
-      }
-
       for (const item of pendingItems) {
         // Mark as currently syncing
         await db.put('sync_queue', { ...item, status: 'syncing' });

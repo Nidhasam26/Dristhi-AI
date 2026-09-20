@@ -1,11 +1,15 @@
-import { Menu, Wifi, WifiOff, RefreshCw, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Menu, Wifi, WifiOff, RefreshCw, CheckCircle2, AlertTriangle, Volume2, VolumeX, Globe } from 'lucide-react';
 import { useConnectivity } from '../../context/ConnectivityContext.jsx';
 import { useSync } from '../../context/SyncContext.jsx';
+import { useVoice } from '../../hooks/useVoice.js';
+import { useLanguage } from '../../context/LanguageContext.jsx';
 import OfflineSessionBadge from '../ui/OfflineSessionBadge.jsx';
 
 export default function Navbar({ onToggleSidebar, isMobile = false, collapsed = false }) {
   const { isOnline, isSlow } = useConnectivity();
   const { pendingCount, status, isProcessing, triggerSync } = useSync();
+  const { enabled, muted, language, languages, hasSpeech, setMuted, enableAndSpeak } = useVoice();
+  const { labels, setLanguage: setAppLanguage } = useLanguage();
 
   const leftOffset = isMobile
     ? 0
@@ -54,6 +58,50 @@ export default function Navbar({ onToggleSidebar, isMobile = false, collapsed = 
       {/* Connectivity & Sync status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3, 12px)' }}>
         <OfflineSessionBadge />
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '5px 8px',
+            borderRadius: 10,
+            background: 'rgba(8, 145, 178, 0.14)',
+            border: '1px solid rgba(56, 189, 248, 0.24)',
+          }}
+          title="Choose spoken guidance language"
+        >
+          {muted || !enabled ? <VolumeX size={14} color="#91b4af" /> : <Volume2 size={14} color="#38bdf8" />}
+          <Globe size={12} color="#91b4af" />
+          <span style={{ color: '#91b4af', fontSize: 11, fontWeight: 600 }}>{labels.language}</span>
+          <select
+            aria-label="Change spoken language"
+            value={language}
+            onChange={(event) => setAppLanguage(event.target.value)}
+            style={{ background: 'transparent', border: 0, color: '#dffcf8', fontSize: 11, outline: 0, maxWidth: 112, cursor: 'pointer' }}
+          >
+            {languages.map((item) => (
+              <option key={item.code} value={item.code} style={{ background: '#071f2c' }}>
+                {item.native}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            aria-label={enabled && !muted ? 'Turn off voice guidance' : 'Turn on voice guidance'}
+            onClick={() => {
+              if (enabled && !muted) {
+                setMuted(true);
+                return;
+              }
+              if (hasSpeech) enableAndSpeak('welcome');
+            }}
+            style={{ background: 'transparent', border: 0, color: '#38bdf8', cursor: hasSpeech || (enabled && !muted) ? 'pointer' : 'not-allowed', padding: 0, display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700 }}
+          >
+            {enabled && !muted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            {!enabled && labels.enableVoice}
+          </button>
+        </div>
 
         {!isOnline ? (
           <div

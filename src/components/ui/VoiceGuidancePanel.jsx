@@ -1,8 +1,10 @@
+
+
 import { useVoice } from '../../hooks/useVoice.js';
 import { Volume2, VolumeX, Globe, Radio } from 'lucide-react';
 
 export default function VoiceGuidancePanel() {
-  const { enabled, language, volume, muted, languages, setEnabled, setLanguage, setVolume, setMuted, speak } =
+  const { enabled, language, volume, muted, languages, hasSpeech, voiceCount, voiceError, setEnabled, setLanguage, setVolume, setMuted, enableAndSpeak } =
     useVoice();
 
   return (
@@ -55,6 +57,23 @@ export default function VoiceGuidancePanel() {
           </span>
         </label>
       </div>
+
+      {!enabled && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
+          <span style={{ fontSize: 12, color: '#facc15' }}>
+            {!hasSpeech ? 'Speech is not supported in this browser.' : voiceCount === 0 ? 'Install a system voice to hear guidance.' : 'Tap the button to hear spoken guidance.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => enableAndSpeak('welcome')}
+            disabled={!hasSpeech || voiceCount === 0}
+            style={{ padding: '9px 14px', borderRadius: 8, background: hasSpeech && voiceCount > 0 ? '#0891b2' : '#475569', border: 0, color: '#fff', fontWeight: 700, cursor: hasSpeech && voiceCount > 0 ? 'pointer' : 'not-allowed' }}
+          >
+            <Volume2 size={14} style={{ verticalAlign: 'middle', marginRight: 6 }} />
+            Enable Voice
+          </button>
+        </div>
+      )}
 
       {enabled && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, paddingTop: 10, borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
@@ -123,7 +142,7 @@ export default function VoiceGuidancePanel() {
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
             <button
               type="button"
-              onClick={() => speak('eye_right')}
+              onClick={() => enableAndSpeak('eye_right')}
               style={{
                 width: '100%',
                 padding: '8px 14px',
@@ -144,6 +163,12 @@ export default function VoiceGuidancePanel() {
             </button>
           </div>
         </div>
+      )}
+
+      {voiceError && (
+        <p style={{ margin: 0, padding: 10, borderRadius: 8, background: 'rgba(250, 204, 21, 0.12)', border: '1px solid rgba(250, 204, 21, 0.3)', color: '#fde68a', fontSize: 12 }}>
+          {voiceError}
+        </p>
       )}
     </div>
   );

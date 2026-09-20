@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useVoice } from "../hooks/useVoice.js";
+import { useLanguage } from "../context/LanguageContext.jsx";
 import {
   Eye,
   EyeOff,
@@ -11,6 +13,8 @@ import {
   Lock,
   CheckCircle2,
   Award,
+  Volume2,
+  Globe2,
 } from "lucide-react";
 import RetinaScanOverlay from "../components/ui/RetinaScanOverlay.jsx";
 
@@ -249,6 +253,8 @@ function AnimatedEye() {
 
 export default function Login() {
   const { login, register } = useAuth();
+  const { enabled, language, languages, hasSpeech, voiceCount, enableAndSpeak } = useVoice();
+  const { setLanguage: setAppLanguage } = useLanguage();
   const navigate = useNavigate();
 
   const [isMobile, setIsMobile] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 1024 : false));
@@ -548,6 +554,41 @@ export default function Login() {
             </span>{" "}
             the result.
           </p>
+        </div>
+
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "10px 12px",
+            marginBottom: 18,
+            background: "rgba(8, 145, 178, 0.12)",
+            border: "1px solid rgba(34, 211, 238, 0.25)",
+            borderRadius: 12,
+          }}
+        >
+          <Globe2 size={16} color="#22d3ee" />
+          <select
+            aria-label="Voice language"
+            value={language}
+            onChange={(event) => setAppLanguage(event.target.value)}
+            style={{ flex: 1, background: "transparent", border: 0, color: "#e6fffb", outline: 0, fontSize: 12 }}
+          >
+            {languages.filter((item) => ["en-IN", "hi-IN", "kn-IN"].includes(item.code)).map((item) => (
+              <option key={item.code} value={item.code} style={{ background: "#071f2c" }}>
+                {item.native} ({item.name})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => enableAndSpeak("welcome")}
+            disabled={!hasSpeech || voiceCount === 0}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 10px", border: 0, borderRadius: 8, background: hasSpeech && voiceCount > 0 ? "#0891b2" : "#475569", color: "#fff", cursor: hasSpeech && voiceCount > 0 ? "pointer" : "not-allowed", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+          >
+            <Volume2 size={14} /> {voiceCount === 0 ? "Voice unavailable" : enabled ? "Hear" : "Enable voice"}
+          </button>
         </div>
 
         {/* Role Switcher */}
